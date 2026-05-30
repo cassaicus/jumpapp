@@ -1,10 +1,10 @@
 {
     "extension_name": {
-        "message": "jumpapp Extension",
+        "message": "jumpapp",
         "description": "The display name for the extension."
     },
     "extension_description": {
-        "message": "This is jumpapp Extension. You should tell us what your extension does here.",
+        "message": "Send Tonari no Young Jump episodes to the jumpapp reader",
         "description": "Description of what the extension does."
     }
 }

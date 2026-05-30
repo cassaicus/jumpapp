@@ -1,0 +1,10 @@
+{
+    "extension_name": {
+        "message": "jumpapp",
+        "description": "拡張機能の表示名"
+    },
+    "extension_description": {
+        "message": "となりのヤングジャンプの話をアプリに送ってオフラインで読みます",
+        "description": "拡張機能の説明"
+    }
+}
