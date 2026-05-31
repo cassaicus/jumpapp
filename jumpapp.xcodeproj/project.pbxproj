@@ -44,7 +44,6 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
-				jumpapp.entitlements,
 			);
 			target = 0164C9772FCACBF8008155B4 /* jumpapp */;
 		};
@@ -52,7 +51,6 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
-				"jumpapp Extension.entitlements",
 			);
 			target = 0164C9942FCACBFA008155B4 /* jumpapp Extension */;
 		};
@@ -74,8 +72,6 @@
 			);
 			explicitFolders = (
 				Resources/_locales,
-				Resources/_locales/en,
-				Resources/_locales/ja,
 				Resources/images,
 			);
 			path = "jumpapp Extension";
