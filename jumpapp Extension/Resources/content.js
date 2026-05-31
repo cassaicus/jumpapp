@@ -16,6 +16,10 @@
         return browser.runtime.sendMessage(message);
     }
 
+    function episodePageURL() {
+        return location.origin + location.pathname.replace(/\/$/, "");
+    }
+
     async function fetchProcessedPage(pageIndex) {
         if (pageCache.has(pageIndex)) return pageCache.get(pageIndex);
         const promise = send({ action: "getProcessedPage", episodeID, pageIndex })
@@ -95,20 +99,39 @@
     }
 
     async function enable() {
-        const info = await send({ action: "getEpisodeInfo", episodeID });
-        if (!info?.ok || !info.downloaded) {
-            setStatus("この話はアプリに保存されていません", true);
-            enabled = false;
+        button.disabled = true;
+        setStatus("確認中…");
+        try {
+            let info = await send({ action: "getEpisodeInfo", episodeID });
+            if (!info?.ok) {
+                setStatus(info?.error ?? "エラー", true);
+                return;
+            }
+
+            if (!info.downloaded) {
+                setStatus("アプリに保存中…");
+                const dl = await send({
+                    action: "downloadEpisode",
+                    url: episodePageURL(),
+                });
+                if (!dl?.ok) {
+                    setStatus(dl?.error ?? "保存に失敗しました", true);
+                    return;
+                }
+                pageCount = dl.episode?.pageCount ?? 0;
+            } else {
+                pageCount = info.pageCount || 0;
+            }
+
+            enabled = true;
+            setStatus(`差し替え中（${pageCount}ページ）`);
             updateButton();
-            return;
+            observer = new MutationObserver(scheduleApply);
+            observer.observe(document.body, { childList: true, subtree: true });
+            applyAll();
+        } finally {
+            button.disabled = false;
         }
-        pageCount = info.pageCount || 0;
-        enabled = true;
-        setStatus(`差し替え中（${pageCount}ページ）`);
-        updateButton();
-        observer = new MutationObserver(scheduleApply);
-        observer.observe(document.body, { childList: true, subtree: true });
-        applyAll();
     }
 
     function disable() {
@@ -123,7 +146,7 @@
     const statusEl = document.createElement("div");
 
     function updateButton() {
-        button.textContent = enabled ? "元に戻す" : "翻訳画像に差し替え（検証）";
+        button.textContent = enabled ? "元に戻す" : "翻訳画像に差し替え";
     }
 
     function setStatus(text, isError = false) {

@@ -4,6 +4,7 @@ const NATIVE_APP = "com.cassaicus.jumpapp";
 // native request through the background page.
 const RELAYED_ACTIONS = new Set([
     "ping",
+    "downloadEpisode",
     "getEpisodeInfo",
     "getProcessedPage",
 ]);
