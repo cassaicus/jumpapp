@@ -1,13 +1,17 @@
 // PoC: ask the host app for processed page images (page number drawn in the
 // center) and swap them in place of the live GigaViewer page images in Safari.
 (function () {
-    const match = location.pathname.match(/^\/episode\/(\d+)/);
-    if (!match) return;
-    const episodeID = match[1];
+    function episodeIDFromLocation() {
+        const match = location.pathname.match(/^\/episode\/(\d+)/);
+        return match ? match[1] : null;
+    }
+
+    if (!episodeIDFromLocation()) return;
     document.documentElement.dataset.jumpappEpisode = "1";
 
     const TAG = "[jumpapp]";
     const pageCache = new Map(); // pageIndex -> dataURL (or pending Promise)
+    let activeEpisodeID = episodeIDFromLocation();
     let pageCount = 0;
     let enabled = false;
     let observer = null;
@@ -22,7 +26,7 @@
 
     async function fetchProcessedPage(pageIndex) {
         if (pageCache.has(pageIndex)) return pageCache.get(pageIndex);
-        const promise = send({ action: "getProcessedPage", episodeID, pageIndex })
+        const promise = send({ action: "getProcessedPage", episodeID: activeEpisodeID, pageIndex })
             .then((res) => {
                 if (!res?.ok) throw new Error(res?.error ?? "取得失敗");
                 pageCache.set(pageIndex, res.dataURL);
@@ -102,7 +106,13 @@
         button.disabled = true;
         setStatus("確認中…");
         try {
-            let info = await send({ action: "getEpisodeInfo", episodeID });
+            activeEpisodeID = episodeIDFromLocation();
+            if (!activeEpisodeID) {
+                setStatus("話のページを開いてください", true);
+                return;
+            }
+
+            let info = await send({ action: "getEpisodeInfo", episodeID: activeEpisodeID });
             if (!info?.ok) {
                 setStatus(info?.error ?? "エラー", true);
                 return;
@@ -134,11 +144,76 @@
         }
     }
 
-    function disable() {
+    function resetSwapState({ reload = false } = {}) {
+        const shouldReload = reload && enabled;
         enabled = false;
         if (observer) observer.disconnect();
         observer = null;
-        location.reload(); // simplest way to restore the original render
+        pageCache.clear();
+        if (pending) {
+            clearTimeout(pending);
+            pending = null;
+        }
+        pageCount = 0;
+        setStatus("");
+        updateButton();
+        button.disabled = false;
+        if (shouldReload) location.reload();
+    }
+
+    function disable() {
+        resetSwapState({ reload: true });
+    }
+
+    function onEpisodeNavigation() {
+        const nextID = episodeIDFromLocation();
+        if (!nextID) {
+            if (enabled || activeEpisodeID) resetSwapState({ reload: enabled });
+            activeEpisodeID = null;
+            return;
+        }
+        if (nextID === activeEpisodeID) return;
+        const reload = enabled;
+        activeEpisodeID = nextID;
+        resetSwapState({ reload });
+    }
+
+    // Content scripts run in an isolated world — patching history here does not
+    // see the site's pushState/replaceState. Poll shared location + inject a
+    // page-world hook so SPA episode changes are detected reliably.
+    function installEpisodeNavigationWatch() {
+        let watchedPath = location.pathname;
+
+        const check = () => {
+            const path = location.pathname;
+            const id = episodeIDFromLocation();
+            if (path === watchedPath && id === activeEpisodeID) return;
+            watchedPath = path;
+            onEpisodeNavigation();
+            watchedPath = location.pathname;
+        };
+
+        const bridge = document.createElement("script");
+        bridge.textContent = `(function(){
+            if (window.__jumpappNavHook) return;
+            window.__jumpappNavHook = 1;
+            const notify = () => document.documentElement.dispatchEvent(new Event("jumpapp-location"));
+            const wrap = (fn) => function() {
+                const result = fn.apply(this, arguments);
+                notify();
+                return result;
+            };
+            history.pushState = wrap(history.pushState);
+            history.replaceState = wrap(history.replaceState);
+            addEventListener("popstate", notify);
+        })();`;
+        document.documentElement.addEventListener("jumpapp-location", check);
+        (document.head || document.documentElement).appendChild(bridge);
+        bridge.remove();
+
+        window.addEventListener("popstate", check);
+        window.addEventListener("pageshow", check);
+        setInterval(check, 300);
     }
 
     // --- Minimal verification UI -------------------------------------------
@@ -175,4 +250,6 @@
     }
     if (document.body) mountUI();
     else window.addEventListener("DOMContentLoaded", mountUI);
+
+    installEpisodeNavigationWatch();
 })();
